@@ -6,7 +6,7 @@ describe('ASCII Debug Analysis', () => {
   test('should analyze ASCII decoding mismatch', () => {
     console.log('\n🔍 ASCII Decoding Analysis:');
     
-    const originalDir = '/data/Code/pklib/tests/testDataset/implode-decoder';
+    const originalDir = path.join(__dirname, '../../test-fixtures');
     const compressedPath = path.join(originalDir, 'large.imploded.ascii');
     const expectedPath = path.join(originalDir, 'large.decomp');
     

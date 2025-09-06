@@ -40,7 +40,7 @@ describe('ASCII Table Debug', () => {
     // Instead, let's check what the decoding gives us for specific bit patterns
     console.log('\n🔍 Let\'s check the actual data where the mismatch occurs...');
     
-    const originalDir = '/data/Code/pklib/tests/testDataset/implode-decoder';
+    const originalDir = path.join(__dirname, '../../test-fixtures');
     const compressedPath = path.join(originalDir, 'large.imploded.ascii');
     const compressedData = fs.readFileSync(compressedPath);
     

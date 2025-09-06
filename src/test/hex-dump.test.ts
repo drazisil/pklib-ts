@@ -3,7 +3,7 @@ import path from 'path';
 
 describe('Hex Dump Analysis', () => {
   it('should analyze hex dump of external files', () => {
-    const originalDir = '/data/Code/pklib/tests/testDataset/implode-decoder';
+    const originalDir = path.join(__dirname, '../../test-fixtures');
     const externalCompressed = fs.readFileSync(path.join(originalDir, 'binary.imploded'));
 
     console.log('External binary file hex dump (first 20 bytes):');

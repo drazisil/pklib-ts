@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 
 describe('ASCII Fixture Critical Test', () => {
-  const originalDir = '/data/Code/pklib/tests/testDataset/implode-decoder';
+  const originalDir = path.join(__dirname, '../../test-fixtures');
   
   test('should decompress ASCII fixture perfectly', () => {
     console.log('\n🧪 Testing ASCII fixture decompression:');

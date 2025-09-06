@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 
 describe('Binary Fixture Critical Test', () => {
-  const originalDir = '/data/Code/pklib/tests/testDataset/implode-decoder';
+  const originalDir = path.join(__dirname, '../../test-fixtures');
   
   it('should decompress binary fixture perfectly', () => {
     const compressedPath = path.join(originalDir, 'binary.imploded');
