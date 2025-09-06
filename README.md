@@ -81,6 +81,92 @@ if (compressResult.success) {
 }
 ```
 
+## Command Line Interface (CLI)
+
+PKLib-TS includes a convenient CLI tool for working with hex data directly from the command line.
+
+### Installation
+
+The CLI requires `ts-node` to run TypeScript files directly:
+
+```bash
+npm install --save-dev ts-node
+```
+
+### Usage
+
+```bash
+# Show help
+npm run cli help
+
+# Compress hex data (binary mode)
+npm run cli implode "48656c6c6f20576f726c64"
+
+# Compress hex data (ASCII mode with custom dictionary)
+npm run cli implode "48656c6c6f20576f726c64" --ascii --dict=2048
+
+# Decompress hex data
+npm run cli explode "0106506CD3D43D645D33E901FF"
+```
+
+### Commands
+
+**explode** - Decompress PKWARE-compressed data
+```bash
+npm run cli explode <hex-data>
+```
+
+**implode** - Compress data using PKWARE algorithm
+```bash
+npm run cli implode <hex-data> [options]
+```
+
+### Options for implode
+
+- `--ascii` - Use ASCII compression mode (default: binary)
+- `--dict=N` - Dictionary size: 1024, 2048, or 4096 (default: 4096)
+
+### Input Format
+
+The CLI accepts hex data in flexible formats:
+- `"deadbeef"` - Continuous hex string
+- `"DE AD BE EF"` - Spaced hex string  
+- `"0xDEADBEEF"` - With 0x prefix
+- Case insensitive (both `"FF"` and `"ff"` work)
+
+### Examples
+
+```bash
+# Round-trip example: "Hello World"
+# 1. Compress
+npm run cli implode "48656c6c6f20576f726c64" --ascii
+# Output: 01 06 50 6C D3 D4 3D 64 5D 33 E9 01 FF
+
+# 2. Decompress
+npm run cli explode "0106506CD3D43D645D33E901FF"
+# Output: 48 65 6C 6C 6F 20 57 6F 72 6C 64 = "Hello World"
+
+# Binary mode compression
+npm run cli implode "deadbeef00112233" --dict=1024
+
+# Decompress test fixture data
+npm run cli explode "000486bc61c3268c983772c2d04963a7..."
+```
+
+### Demo Script
+
+Run the included demo to see the CLI in action:
+
+```bash
+./demo-cli.sh
+```
+
+This demonstrates:
+- ASCII and binary compression modes
+- Different dictionary sizes
+- Real test fixture decompression
+- Complete round-trip examples
+
 ## API Reference
 
 ### Compression (Implode)
