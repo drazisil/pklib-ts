@@ -124,10 +124,13 @@ function flushBuf(pWork: CompressionStruct): void {
 function outputBits(pWork: CompressionStruct, nbits: number, bitBuff: number): void {
   let outBits: number;
 
+  // Ensure bitBuff is within safe integer range for bitwise operations
+  bitBuff = bitBuff >>> 0; // Convert to unsigned 32-bit integer
+
   // If more than 8 bits to output, do recursion (exactly like C code)
   if (nbits > 8) {
     outputBits(pWork, 8, bitBuff);
-    bitBuff >>>= 8;  // Use unsigned right shift
+    bitBuff >>= 8;  // Use signed right shift like C code
     nbits -= 8;
     // Continue with the rest of the function for remaining bits
   }
@@ -140,7 +143,7 @@ function outputBits(pWork: CompressionStruct, nbits: number, bitBuff: number): v
   // If 8 or more bits, increment number of bytes (exactly like C code)
   if (pWork.outBits > 8) {
     pWork.outBytes++;
-    bitBuff >>>= (8 - outBits);  // Use unsigned right shift
+    bitBuff >>= (8 - outBits);  // Use signed right shift like C code
     
     pWork.outBuff[pWork.outBytes] = bitBuff & 0xFF;
     pWork.outBits &= 7;

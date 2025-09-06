@@ -171,20 +171,20 @@ function decodeLit(pWork: DecompressionStruct): number {
 
       const result = pWork.lenBase[lengthCode] + extraLength + 0x100;
       
-      // Check for end-of-stream marker (0x10E = 270)
-      if (result === 0x10E) {
-        return 0x305; // End of stream
-      }
+      // Disable early end-of-stream check - 0x10E is a valid length code, not end marker
+      // if (result === 0x10E) {
+      //   return 0x305; // End of stream
+      // }
       
       return result;
     }
 
     const result = pWork.lenBase[lengthCode] + 0x100;
     
-    // Check for end-of-stream marker
-    if (result === 0x10E) {
-      return 0x305; // End of stream
-    }
+    // Disable early end-of-stream check - 0x10E is a valid length code, not end marker  
+    // if (result === 0x10E) {
+    //   return 0x305; // End of stream
+    // }
     
     return result;
   } else {
