@@ -19,7 +19,9 @@ import {
   DistCode, 
   LenBits, 
   LenCode,
-  ExLenBits
+  ExLenBits,
+  ChBitsAsc,
+  ChCodeAsc
 } from '../PKWareLUT/PKWareLUTs';
 
 const MAX_REP_LENGTH = 0x204; // Maximum repetition length
@@ -161,48 +163,94 @@ function outputBits(pWork: CompressionStruct, nbits: number, bitBuff: number): v
 }
 
 /**
- * Find repetition in the dictionary
+ * Find repetition in the dictionary (matches C code logic exactly)
  */
 function findRep(pWork: CompressionStruct, bufferPos: number): { length: number; distance: number } {
   const maxLength = Math.min(MAX_REP_LENGTH, pWork.workBuff.length - bufferPos);
-  let bestLength = 1;
+  let repLength = 1;
   let bestDistance = 0;
   
   if (maxLength < 2) {
-    return { length: bestLength, distance: bestDistance };
+    return { length: repLength, distance: bestDistance };
   }
   
   const hash = bytePairHash(pWork.workBuff, bufferPos) % ImplodeSizesEnum.HASHTABLE_SIZE;
   const hashEnd = (hash < ImplodeSizesEnum.HASHTABLE_SIZE - 1) ? 
     pWork.phashToIndex[hash + 1] : pWork.phashOffs.length;
   
+  const inputData = pWork.workBuff.slice(bufferPos);
+  const minOffset = Math.max(0, bufferPos - pWork.dsizeBytes + 1);
+  
   // Search through all positions with the same hash
   for (let hashOffs = pWork.phashToIndex[hash]; hashOffs < hashEnd; hashOffs++) {
     const repOffs = pWork.phashOffs[hashOffs];
     
+    // Skip if offset is too old (beyond dictionary size)
+    if (repOffs < minOffset) {
+      continue;
+    }
+    
+    // Don't look ahead
     if (repOffs >= bufferPos) {
-      break; // Don't look ahead
+      break;
     }
     
-    const distance = bufferPos - repOffs;
-    if (distance > pWork.dsizeBytes) {
-      continue; // Too far back
-    }
+    const prevRepetition = pWork.workBuff.slice(repOffs);
     
-    // Check how many bytes match
-    let length = 0;
-    while (length < maxLength && 
-           pWork.workBuff[bufferPos + length] === pWork.workBuff[repOffs + length]) {
-      length++;
-    }
-    
-    if (length > bestLength) {
-      bestLength = length;
-      bestDistance = distance;
+    // Check if first byte and the last byte of current rep_length match (C code optimization)
+    if (inputData[0] === prevRepetition[0] && 
+        (repLength === 1 || inputData[repLength - 1] === prevRepetition[repLength - 1])) {
+      
+      // Count how many bytes match
+      let equalByteCount = 0;
+      while (equalByteCount < maxLength && 
+             equalByteCount < prevRepetition.length &&
+             inputData[equalByteCount] === prevRepetition[equalByteCount]) {
+        equalByteCount++;
+      }
+      
+      // If we found a repetition of at least the same length, take it.
+      // This ensures we find the most recent one (smallest distance = fewer bits)
+      if (equalByteCount >= repLength) {
+        bestDistance = bufferPos - repOffs;
+        repLength = equalByteCount;
+        
+        // Repetitions longer than 10 bytes get special handling (C code comment)
+        if (repLength > 10) {
+          break;
+        }
+      }
     }
   }
   
-  return { length: bestLength, distance: bestDistance };
+  // A repetition must have at least 2 bytes, otherwise it's not worth it
+  return { 
+    length: repLength >= 2 ? repLength : 0, 
+    distance: bestDistance 
+  };
+}
+
+/**
+ * Encode repetition - matches C code exactly
+ */
+function writeDistance(pWork: CompressionStruct, distance: number, length: number): void {
+  // Adjust distance to match C code behavior (PKLib stores distance decremented by 1)
+  const adjustedDistance = distance - 1;
+  
+  // Output length code (rep_length + 0xFE)
+  const lengthIndex = length + 0xFE;
+  outputBits(pWork, pWork.nChBits[lengthIndex], pWork.nChCodes[lengthIndex]);
+  
+  // Output distance
+  if (length === 2) {
+    // For length 2, use 2-bit encoding
+    outputBits(pWork, pWork.distBits[adjustedDistance >>> 2], pWork.distCodes[adjustedDistance >>> 2]);
+    outputBits(pWork, 2, adjustedDistance & 3);
+  } else {
+    // For length > 2, use dictionary size encoding
+    outputBits(pWork, pWork.distBits[adjustedDistance >>> pWork.dsizeBits], pWork.distCodes[adjustedDistance >>> pWork.dsizeBits]);
+    outputBits(pWork, pWork.dsizeBits, pWork.dsizeMask & adjustedDistance);
+  }
 }
 
 /**
@@ -211,45 +259,6 @@ function findRep(pWork: CompressionStruct, bufferPos: number): { length: number;
 function writeLiteral(pWork: CompressionStruct, byte: number): void {
   // Output literal using character codes directly
   outputBits(pWork, pWork.nChBits[byte], pWork.nChCodes[byte]);
-}
-
-/**
- * Encode repetition - matches C code exactly
- */
-function writeDistance(pWork: CompressionStruct, distance: number, length: number): void {
-  // Output length code (rep_length + 0xFE)
-  const lengthIndex = length + 0xFE;
-  outputBits(pWork, pWork.nChBits[lengthIndex], pWork.nChCodes[lengthIndex]);
-  
-  // Output distance
-  if (length === 2) {
-    // For length 2, use 2-bit encoding
-    outputBits(pWork, pWork.distBits[distance >>> 2], pWork.distCodes[distance >>> 2]);
-    outputBits(pWork, 2, distance & 3);
-  } else {
-    // For length > 2, use dictionary size encoding
-    outputBits(pWork, pWork.distBits[distance >>> pWork.dsizeBits], pWork.distCodes[distance >>> pWork.dsizeBits]);
-    outputBits(pWork, pWork.dsizeBits, pWork.dsizeMask & distance);
-  }
-}
-
-/**
- * Initialize compression tables for ASCII mode
- */
-function initAsciiTables(pWork: CompressionStruct): void {
-  // For simplicity, use fixed Huffman table lengths
-  // In a complete implementation, these would be calculated based on frequency analysis
-  for (let i = 0; i < ImplodeSizesEnum.LITERALS_COUNT; i++) {
-    if (i >= 32 && i <= 126) {
-      // Printable ASCII characters get shorter codes
-      pWork.nChBits[i] = 7;
-      pWork.nChCodes[i] = i - 32;
-    } else {
-      // Non-printable characters get longer codes
-      pWork.nChBits[i] = 9;
-      pWork.nChCodes[i] = (i < 32) ? i + 256 : i + 128;
-    }
-  }
 }
 
 /**
@@ -299,10 +308,10 @@ export function implode(
         pWork.nChCodes[nCount] = nCount * 2;
       }
     } else {
-      // ASCII mode: use Huffman encoding (simplified for now)
-      for (let nCount = 0; nCount < 0x100; nCount++) {
-        pWork.nChBits[nCount] = 9; // Simplified to 9 bits
-        pWork.nChCodes[nCount] = nCount * 2;
+      // ASCII mode: Use PKLib standard character encoding tables (FIXED)
+      for (let i = 0; i < 0x100; i++) {
+        pWork.nChBits[i] = ChBitsAsc[i] + 1;      // Add 1 like C code
+        pWork.nChCodes[i] = ChCodeAsc[i] * 2;     // Multiply by 2 like C code
       }
     }
 
@@ -319,11 +328,6 @@ export function implode(
     // Copy distance tables
     pWork.distBits.set(DistBits);
     pWork.distCodes.set(DistCode);
-
-    // Initialize ASCII tables if needed
-    if (compressionType === CMP_ASCII) {
-      initAsciiTables(pWork);
-    }
 
     // Initialize output buffer like C code
     // Write header: compression type and dictionary size bits only

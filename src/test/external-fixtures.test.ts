@@ -114,8 +114,8 @@ describe('External Fixture Tests', () => {
       console.log(`  Compression type: ${compressionType === CMP_BINARY ? 'BINARY' : 'ASCII'}`);
       console.log(`  Dictionary size: ${dictionarySize}`);
 
-      // Create read function that reads from the compressed data buffer (skip header)
-      let readPosition = 3; // Skip the 3-byte header
+      // Create read function that reads from the compressed data buffer
+      let readPosition = 0; // Start from beginning so explodePKLib can read header
       const readBuf = (buffer: Uint8Array, size: number): number => {
         const bytesToRead = Math.min(size, compressedData.length - readPosition);
         if (bytesToRead <= 0) {
