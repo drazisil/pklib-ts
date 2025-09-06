@@ -2,6 +2,22 @@
 
 A TypeScript port of the PKWARE Data Compression Library, originally created by Ladislav Zezula.
 
+## License
+
+**This code is licensed under GPL 3.0 or later.**
+
+This TypeScript port of PKLib is released under the **GNU General Public License v3.0 or later** to ensure that all derivatives and improvements remain open source and benefit the community.
+
+## Source References
+
+This is a TypeScript port of [Ladislav Zezula](https://github.com/ladislav-zezula)'s [`pklib`](https://github.com/ladislav-zezula/StormLib/tree/master/src/pklib), extracted from [`StormLib`](https://github.com/ladislav-zezula/StormLib).
+
+**Original Source**: PKWare Data Compression Library (DCL) implementation  
+**Original Author**: Ladislav Zezula  
+**Original License**: MIT (for reference)  
+**This TypeScript Port**: GPL 3.0+ (see LICENSE file)  
+**Test Fixtures**: MIT License by Travis Collins (ShieldBattery/implode-decoder)
+
 ## Overview
 
 This library provides compression and decompression functionality compatible with the PKWARE compression algorithm used in various applications and file formats. It includes both implode (compression) and explode (decompression) functions with support for different dictionary sizes and compression modes.
