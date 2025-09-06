@@ -32,10 +32,10 @@ export class SlidingWindow {
   }
 
   /**
-   * Get a byte at a specific offset from current position
+   * Get a byte at a specific distance back from current position
    */
-  getByte(offset: number): number {
-    const pos = (this.position - offset - 1 + this.size) % this.size;
+  getByte(distance: number): number {
+    const pos = (this.position - distance + this.size) % this.size;
     return this.buffer[pos];
   }
 

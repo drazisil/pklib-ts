@@ -30,6 +30,7 @@ class CompressionStruct {
   public distance: number = 0;          // Backward distance of found repetition
   public outBytes: number = 0;          // Bytes available in output buffer
   public outBits: number = 0;           // Bits available in last output byte
+  public bitBuff: number = 0;           // Bit accumulation buffer
   public dsizeBits: number = 0;         // Number of bits for dictionary size
   public dsizeMask: number = 0;         // Bit mask for dictionary
   public ctype: number = 0;             // Compression type
@@ -116,19 +117,19 @@ function flushBuf(pWork: CompressionStruct): void {
  * Output bits to the compressed stream
  */
 function outputBits(pWork: CompressionStruct, nBits: number, bitBuff: number): void {
-  // If not enough space for nBits, flush the buffer
+  // If not enough space, flush the buffer
   if (pWork.outBytes > 0x800 - 10) {
     flushBuf(pWork);
   }
 
-  // Add new bits to bit buffer
+  // Accumulate bits in the bit buffer
+  pWork.bitBuff |= (bitBuff << (32 - pWork.outBits - nBits));
   pWork.outBits += nBits;
-  bitBuff <<= (32 - pWork.outBits);
   
-  // Write complete bytes
+  // Output complete bytes
   while (pWork.outBits >= 8) {
-    pWork.outBuff[pWork.outBytes++] = (bitBuff >>> 24) & 0xFF;
-    bitBuff <<= 8;
+    pWork.outBuff[pWork.outBytes++] = (pWork.bitBuff >>> 24) & 0xFF;
+    pWork.bitBuff <<= 8;
     pWork.outBits -= 8;
   }
 }
@@ -295,60 +296,88 @@ export function implode(
       initAsciiTables(pWork);
     }
 
-    let totalInput = 0;
-    let totalOutput = 0;
+    // Initialize output buffer like C code
+    // Write header: compression type and dictionary size bits only
+    pWork.outBuff[0] = compressionType;
+    pWork.outBuff[1] = pWork.dsizeBits;
+    pWork.outBytes = 2;  // Start writing compressed data from byte 2
     
-    // Main compression loop
+    // Reset remaining output buffer to zero
+    pWork.outBuff.fill(0, 2);
+    
+    // Initialize bit buffer properly
+    pWork.outBits = 0;
+    pWork.bitBuff = 0;
+    
+    let totalInput = 0;
+    
+    // Main compression loop - process input in chunks
+    const inputBuffer = new Uint8Array(0x1000);
+    let bufferPos = 0;
+    
     while (true) {
-      // Read input data
-      const bytesRead = readBuf(pWork.workBuff.slice(0x1000), 0x1000);
+      // Read input data directly into work buffer
+      const bytesRead = readBuf(inputBuffer, inputBuffer.length);
       if (bytesRead === 0) {
         break; // No more input
       }
       
       totalInput += bytesRead;
       
-      // Sort buffer for hash table
-      sortBuffer(pWork, 0x1000, 0x1000 + bytesRead);
+      // Copy input to work buffer for processing
+      pWork.workBuff.set(inputBuffer.slice(0, bytesRead), bufferPos);
+      const endPos = bufferPos + bytesRead;
+      
+      // Build hash table for this chunk
+      if (endPos > 1) {
+        sortBuffer(pWork, bufferPos, endPos);
+      }
       
       // Compress the data
-      for (let i = 0x1000; i < 0x1000 + bytesRead; ) {
-        const rep = findRep(pWork, i);
-        
-        if (rep.length >= 2) {
-          // Output repetition
-          writeDistance(pWork, rep.distance, rep.length);
-          i += rep.length;
+      for (let i = bufferPos; i < endPos; ) {
+        if (i < endPos - 1) { // Need at least 2 bytes for repetition search
+          const rep = findRep(pWork, i);
+          
+          if (rep.length >= 2 && rep.distance > 0) {
+            // Output repetition
+            writeDistance(pWork, rep.distance, rep.length);
+            i += rep.length;
+          } else {
+            // Output literal
+            writeLiteral(pWork, pWork.workBuff[i]);
+            i++;
+          }
         } else {
-          // Output literal
+          // Last byte, output as literal
           writeLiteral(pWork, pWork.workBuff[i]);
           i++;
         }
       }
       
-      // Move remaining data to beginning of buffer
-      pWork.workBuff.copyWithin(0, 0x1000, 0x1000 + bytesRead);
+      // Prepare for next chunk - keep some overlap for better compression
+      bufferPos = Math.min(endPos, 0x1000);
+      if (bufferPos > 0 && endPos < pWork.workBuff.length) {
+        pWork.workBuff.copyWithin(0, endPos - bufferPos, endPos);
+        bufferPos = 0;
+      }
     }
     
     // Write end-of-stream marker
     outputBits(pWork, 1, 1); // Repetition marker
     outputBits(pWork, LenBits[LUTSizesEnum.LENS_SIZES - 1], LenCode[LUTSizesEnum.LENS_SIZES - 1]); // Max length code for EOS
     
-    // Flush remaining bits
-    if (pWork.outBits > 0) {
-      outputBits(pWork, 8 - pWork.outBits, 0);
+    // Flush remaining bits like C code
+    if (pWork.outBits !== 0) {
+      pWork.outBytes++;
     }
-    
-    // Flush final buffer
-    if (pWork.outBytes > 0) {
-      writeBuf(pWork.outBuff.slice(0, pWork.outBytes), pWork.outBytes);
-      totalOutput += pWork.outBytes;
-    }
+
+    // Write the complete output buffer (header + compressed data)
+    writeBuf(pWork.outBuff.slice(0, pWork.outBytes), pWork.outBytes);
 
     return {
       success: true,
       errorCode: PklibErrorCode.CMP_NO_ERROR,
-      compressedSize: totalOutput,
+      compressedSize: pWork.outBytes,
       originalSize: totalInput
     };
 

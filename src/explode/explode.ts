@@ -157,7 +157,7 @@ function decodeLit(pWork: DecompressionStruct): number {
 
     // Remove the appropriate number of bits
     if (!pWork.bitStream.wasteBits(pWork.lenBits[lengthCode])) {
-      return 0x306; // Error
+      return 0x306; // Error - we started reading but couldn't complete
     }
 
     // Check for extra bits
@@ -169,18 +169,33 @@ function decodeLit(pWork: DecompressionStruct): number {
         return 0x306; // Error
       }
 
-      return pWork.lenBase[lengthCode] + extraLength + 0x100;
+      const result = pWork.lenBase[lengthCode] + extraLength + 0x100;
+      
+      // Check for end-of-stream marker (0x10E = 270)
+      if (result === 0x10E) {
+        return 0x305; // End of stream
+      }
+      
+      return result;
     }
 
-    return pWork.lenBase[lengthCode] + 0x100;
+    const result = pWork.lenBase[lengthCode] + 0x100;
+    
+    // Check for end-of-stream marker
+    if (result === 0x10E) {
+      return 0x305; // End of stream
+    }
+    
+    return result;
   } else {
+    // Single literal - remove one bit from input data
+    if (!pWork.bitStream.wasteBits(1)) {
+      console.log(`decodeLit: ERROR - failed to waste first bit`);
+      return 0x306; // Error
+    }
+    
     // ASCII mode handling
     if (pWork.ctype === CMP_ASCII) {
-      // Remove one bit
-      if (!pWork.bitStream.wasteBits(1)) {
-        return 0x306; // Error
-      }
-
       // Decode using ASCII tables
       const bitBuffer = pWork.bitStream.getBitBuffer();
       if (pWork.offs2C34[bitBuffer & 0xFF] === 0xFF) {
@@ -216,11 +231,7 @@ function decodeLit(pWork: DecompressionStruct): number {
         return count;
       }
     } else {
-      // Binary mode - just remove one bit and return next 8 bits
-      if (!pWork.bitStream.wasteBits(1)) {
-        return 0x306; // Error
-      }
-
+      // Binary mode - just return next 8 bits
       const result = pWork.bitStream.getBitBuffer() & 0xFF;
       if (!pWork.bitStream.wasteBits(8)) {
         return 0x306; // Error
@@ -235,44 +246,30 @@ function decodeLit(pWork: DecompressionStruct): number {
  * Decode distance for repetition
  */
 function decodeDist(pWork: DecompressionStruct, length: number): number {
+  // Get distance position code
+  const distPosCode = pWork.distPosCodes[pWork.bitStream.getBitBuffer() & 0xFF];
+  const distPosBits = pWork.distBits[distPosCode];
+  
+  if (!pWork.bitStream.wasteBits(distPosBits)) {
+    return 0; // Error
+  }
+
   if (length === 2) {
-    // 2-byte repetition
-    const distPosCode = pWork.distPosCodes[pWork.bitStream.getBitBuffer() & 0xFF];
-    if (!pWork.bitStream.wasteBits(pWork.distBits[distPosCode])) {
+    // 2-byte repetition uses 2 additional bits
+    const distance = (distPosCode << 2) | (pWork.bitStream.getBitBuffer() & 0x03);
+    if (!pWork.bitStream.wasteBits(2)) {
       return 0; // Error
     }
-
-    if (distPosCode !== 0) {
-      const extraDistBits = pWork.distBits[distPosCode] - 2;
-      const extraDist = pWork.bitStream.getBitBuffer() & ((1 << extraDistBits) - 1);
-      
-      if (!pWork.bitStream.wasteBits(extraDistBits)) {
-        return 0; // Error
-      }
-
-      return ((1 << extraDistBits) + extraDist + DistCode[distPosCode]);
-    }
     
-    return DistCode[distPosCode];
+    return distance + 1;
   } else {
-    // Longer repetition
-    const distPosCode = pWork.distPosCodes[pWork.bitStream.getBitBuffer() & 0xFF];
-    if (!pWork.bitStream.wasteBits(pWork.distBits[distPosCode])) {
+    // Longer repetition uses dsize_bits additional bits
+    const distance = (distPosCode << pWork.dsizeBits) | (pWork.bitStream.getBitBuffer() & pWork.dsizeMask);
+    if (!pWork.bitStream.wasteBits(pWork.dsizeBits)) {
       return 0; // Error
     }
-
-    if (distPosCode !== 0) {
-      const extraDistBits = pWork.distBits[distPosCode] - pWork.dsizeBits;
-      const extraDist = pWork.bitStream.getBitBuffer() & ((1 << extraDistBits) - 1);
-      
-      if (!pWork.bitStream.wasteBits(extraDistBits)) {
-        return 0; // Error
-      }
-
-      return ((1 << extraDistBits) + extraDist + DistCode[distPosCode]);
-    }
     
-    return DistCode[distPosCode];
+    return distance + 1;
   }
 }
 
@@ -435,4 +432,158 @@ export function getExplodeSizeConstants(): {
     CH_BITS_ASC_SIZE: LUTSizesEnum.CH_BITS_ASC_SIZE,
     LENS_SIZES: LUTSizesEnum.LENS_SIZES,
   };
+}
+
+/**
+ * PKLib-compatible explode function that handles the header parsing internally
+ */
+export function explodePKLib(
+  readBuf: ReadFunction,
+  writeBuf: WriteFunction
+): DecompressionResult {
+  try {
+    // Read enough data to get the header
+    const headerBuffer = new Uint8Array(3);
+    const headerBytesRead = readBuf(headerBuffer, 3);
+    
+    if (headerBytesRead < 3) {
+      return {
+        success: false,
+        errorCode: PklibErrorCode.CMP_BAD_DATA
+      };
+    }
+    
+    // Parse header
+    const compressionType = headerBuffer[0];
+    const dictionarySizeBits = headerBuffer[1];
+    const initialBitBuffer = headerBuffer[2];
+    
+    // Validate compression type
+    if (compressionType !== CMP_BINARY && compressionType !== CMP_ASCII) {
+      return {
+        success: false,
+        errorCode: PklibErrorCode.CMP_INVALID_MODE
+      };
+    }
+    
+    // Validate and convert dictionary size
+    let dictionarySize: number;
+    switch (dictionarySizeBits) {
+      case 4: dictionarySize = 1024; break;
+      case 5: dictionarySize = 2048; break;
+      case 6: dictionarySize = 4096; break;
+      default:
+        return {
+          success: false,
+          errorCode: PklibErrorCode.CMP_INVALID_DICTSIZE
+        };
+    }
+    
+    // Create decompression structure with the header-aware read function
+    const pWork = new DecompressionStruct(readBuf);
+    
+    // Set compression parameters
+    pWork.ctype = compressionType;
+    pWork.dsizeBits = dictionarySizeBits;
+    pWork.dsizeMask = 0xFFFF >> (0x10 - dictionarySizeBits);
+    
+    // CRITICAL: Initialize bit stream with the initial bit buffer
+    pWork.bitStream.initializeBitBuffer(initialBitBuffer);
+    
+    // Generate decode tables
+    genDecodeTabs(pWork.distPosCodes, DistCode, DistBits, LUTSizesEnum.DIST_SIZES);
+    genDecodeTabs(pWork.lengthCodes, LenCode, LenBits, LUTSizesEnum.LENS_SIZES);
+
+    if (compressionType === CMP_ASCII) {
+      genAscTabs(pWork);
+    }
+
+    const outputBuffer = new Uint8Array(0x1000); // 4KB output buffer
+    let totalOutput = 0;
+    let outputChunks: Uint8Array[] = [];
+
+    // Main decompression loop
+    let iterationCount = 0;
+    while (true) {
+      iterationCount++;
+      const oneLiteral = decodeLit(pWork);
+      
+      if (oneLiteral === 0x306) {
+        // Error - but let's finalize what we have so far
+        console.log(`PKLib: decodeLit error after ${iterationCount} iterations, outputPos=${pWork.outputPos}`);
+        break;
+      }
+      
+      if (oneLiteral === 0x305) {
+        // End of stream
+        console.log(`PKLib: end of stream reached after ${iterationCount} iterations`);
+        break;
+      }
+      
+      if (oneLiteral < 0x100) {
+        // Literal byte
+        outputBuffer[pWork.outputPos] = oneLiteral;
+        pWork.slidingWindow.writeByte(oneLiteral);
+        pWork.outputPos++;
+        
+        if (pWork.outputPos >= outputBuffer.length) {
+          outputChunks.push(outputBuffer.slice(0, pWork.outputPos));
+          totalOutput += pWork.outputPos;
+          writeBuf(outputBuffer.slice(0, pWork.outputPos), pWork.outputPos);
+          pWork.outputPos = 0;
+        }
+      } else {
+        // Copy string
+        const copyLength = oneLiteral - 0x100 + 2;
+        const moveBackward = decodeDist(pWork, copyLength);
+        
+        if (moveBackward === 0) {
+          console.log(`PKLib: decodeDist error after ${iterationCount} iterations, outputPos=${pWork.outputPos}`);
+          break;
+        }
+        
+        for (let i = 0; i < copyLength; i++) {
+          const byte = pWork.slidingWindow.getByte(moveBackward);
+          outputBuffer[pWork.outputPos] = byte;
+          pWork.slidingWindow.writeByte(byte);
+          pWork.outputPos++;
+          
+          if (pWork.outputPos >= outputBuffer.length) {
+            outputChunks.push(outputBuffer.slice(0, pWork.outputPos));
+            totalOutput += pWork.outputPos;
+            writeBuf(outputBuffer.slice(0, pWork.outputPos), pWork.outputPos);
+            pWork.outputPos = 0;
+          }
+        }
+      }
+    }
+
+    // Write remaining output
+    if (pWork.outputPos > 0) {
+      outputChunks.push(outputBuffer.slice(0, pWork.outputPos));
+      totalOutput += pWork.outputPos;
+      writeBuf(outputBuffer.slice(0, pWork.outputPos), pWork.outputPos);
+    }
+
+    // Combine all output chunks
+    const result = new Uint8Array(totalOutput);
+    let offset = 0;
+    for (const chunk of outputChunks) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return {
+      success: true,
+      errorCode: PklibErrorCode.CMP_NO_ERROR,
+      decompressedData: result,
+      originalSize: totalOutput
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      errorCode: PklibErrorCode.CMP_ABORT
+    };
+  }
 }

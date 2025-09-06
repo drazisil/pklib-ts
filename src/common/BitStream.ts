@@ -17,6 +17,15 @@ export class BitStream {
   }
 
   /**
+   * Initialize the bit buffer with an initial value (from PKLib header)
+   * According to C code and working JS implementation: bit_buff = header[2], extra_bits = 0
+   */
+  initializeBitBuffer(initialValue: number): void {
+    this.buffer = initialValue;
+    this.extraBits = 0; // Critical: set to 0, no valid bits initially
+  }
+
+  /**
    * Load more data from input stream if needed
    */
   private loadInput(): boolean {
@@ -43,16 +52,18 @@ export class BitStream {
     }
 
     // Need to load more data
-    this.buffer >>>= this.extraBits;
-    
     if (!this.loadInput()) {
       return false; // No more data available
     }
 
-    // Update bit buffer with new byte
-    this.buffer |= (this.inputBuffer[this.inputPos++] << 8);
-    this.buffer >>>= (nBits - this.extraBits);
-    this.extraBits = (this.extraBits - nBits) + 8;
+    // Place the new byte in the second byte of the bitBuffer (high bits)
+    // This matches the working JavaScript implementation
+    const newByte = this.inputBuffer[this.inputPos++];
+    this.buffer |= (newByte << (8 + this.extraBits));
+    
+    // Remove the used bits
+    this.buffer >>>= nBits;
+    this.extraBits += 8 - nBits;
     
     return true;
   }
