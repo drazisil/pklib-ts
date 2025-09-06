@@ -18,7 +18,8 @@ import {
   DistBits, 
   DistCode, 
   LenBits, 
-  LenCode
+  LenCode,
+  ExLenBits
 } from '../PKWareLUT/PKWareLUTs';
 
 const MAX_REP_LENGTH = 0x204; // Maximum repetition length
@@ -30,7 +31,6 @@ class CompressionStruct {
   public distance: number = 0;          // Backward distance of found repetition
   public outBytes: number = 0;          // Bytes available in output buffer
   public outBits: number = 0;           // Bits available in last output byte
-  public bitBuff: number = 0;           // Bit accumulation buffer
   public dsizeBits: number = 0;         // Number of bits for dictionary size
   public dsizeMask: number = 0;         // Bit mask for dictionary
   public ctype: number = 0;             // Compression type
@@ -98,39 +98,61 @@ function sortBuffer(pWork: CompressionStruct, bufferBegin: number, bufferEnd: nu
 }
 
 /**
- * Flush output buffer
+ * Flush output buffer - matches C code exactly
  */
 function flushBuf(pWork: CompressionStruct): void {
-  const flushSize = 0x800;
-  pWork.writeFunc(pWork.outBuff.slice(0, flushSize), flushSize);
-  
-  const saveCh1 = pWork.outBuff[flushSize];
+  const size = 0x800;
+  pWork.writeFunc(pWork.outBuff.slice(0, size), size);
+
+  const saveCh1 = pWork.outBuff[0x800];
   const saveCh2 = pWork.outBuff[pWork.outBytes];
-  
-  pWork.outBytes -= flushSize;
-  pWork.outBuff.copyWithin(0, flushSize, flushSize + pWork.outBytes);
-  
-  pWork.outBuff[pWork.outBytes] = saveCh2;
+  pWork.outBytes -= 0x800;
+
+  pWork.outBuff.fill(0);
+
+  if (pWork.outBytes !== 0) {
+    pWork.outBuff[0] = saveCh1;
+  }
+  if (pWork.outBits !== 0) {
+    pWork.outBuff[pWork.outBytes] = saveCh2;
+  }
 }
 
 /**
- * Output bits to the compressed stream
+ * Output bits to the compressed stream - matches C code exactly
  */
 function outputBits(pWork: CompressionStruct, nBits: number, bitBuff: number): void {
-  // If not enough space, flush the buffer
-  if (pWork.outBytes > 0x800 - 10) {
-    flushBuf(pWork);
+  // If more than 8 bits to output, do recursion
+  if (nBits > 8) {
+    outputBits(pWork, 8, bitBuff);
+    bitBuff >>>= 8;
+    nBits -= 8;
+    outputBits(pWork, nBits, bitBuff);
+    return;
   }
 
-  // Accumulate bits in the bit buffer
-  pWork.bitBuff |= (bitBuff << (32 - pWork.outBits - nBits));
+  // Add bits to the last out byte in out_buff
+  const outBits = pWork.outBits;
+  pWork.outBuff[pWork.outBytes] |= (bitBuff << outBits) & 0xFF;
   pWork.outBits += nBits;
-  
-  // Output complete bytes
-  while (pWork.outBits >= 8) {
-    pWork.outBuff[pWork.outBytes++] = (pWork.bitBuff >>> 24) & 0xFF;
-    pWork.bitBuff <<= 8;
-    pWork.outBits -= 8;
+
+  // If 8 or more bits, increment number of bytes
+  if (pWork.outBits >= 8) {
+    pWork.outBytes++;
+    bitBuff >>>= (8 - outBits);
+
+    pWork.outBuff[pWork.outBytes] = bitBuff & 0xFF;
+    pWork.outBits &= 7;
+  } else {
+    pWork.outBits &= 7;
+    if (pWork.outBits === 0) {
+      pWork.outBytes++;
+    }
+  }
+
+  // If there is enough compressed bytes, flush them
+  if (pWork.outBytes >= 0x800) {
+    flushBuf(pWork);
   }
 }
 
@@ -180,56 +202,30 @@ function findRep(pWork: CompressionStruct, bufferPos: number): { length: number;
 }
 
 /**
- * Encode literal byte
+ * Encode literal byte - matches C code exactly
  */
 function writeLiteral(pWork: CompressionStruct, byte: number): void {
-  if (pWork.ctype === CMP_BINARY) {
-    // Binary mode: output 0 bit + 8 bits of data
-    outputBits(pWork, 1, 0);
-    outputBits(pWork, 8, byte);
-  } else {
-    // ASCII mode: use Huffman encoding
-    outputBits(pWork, 1, 0);
-    outputBits(pWork, pWork.nChBits[byte], pWork.nChCodes[byte]);
-  }
+  // Output literal using character codes directly
+  outputBits(pWork, pWork.nChBits[byte], pWork.nChCodes[byte]);
 }
 
 /**
- * Encode repetition
+ * Encode repetition - matches C code exactly
  */
 function writeDistance(pWork: CompressionStruct, distance: number, length: number): void {
-  // Output 1 bit to indicate repetition
-  outputBits(pWork, 1, 1);
+  // Output length code (rep_length + 0xFE)
+  const lengthIndex = length + 0xFE;
+  outputBits(pWork, pWork.nChBits[lengthIndex], pWork.nChCodes[lengthIndex]);
   
-  // Encode length
-  const lengthCode = length - 2;
-  if (lengthCode < LUTSizesEnum.LENS_SIZES) {
-    outputBits(pWork, LenBits[lengthCode], LenCode[lengthCode]);
-  }
-  
-  // Encode distance
-  let distCode = 0;
-  for (let i = 0; i < LUTSizesEnum.DIST_SIZES; i++) {
-    if (distance <= (1 << DistBits[i])) {
-      distCode = i;
-      break;
-    }
-  }
-  
-  outputBits(pWork, DistBits[distCode], DistCode[distCode]);
-  
+  // Output distance
   if (length === 2) {
-    // Special handling for 2-byte repetitions
-    const extraBits = DistBits[distCode] - 2;
-    if (extraBits > 0) {
-      outputBits(pWork, extraBits, distance - (1 << (DistBits[distCode] - extraBits)));
-    }
+    // For length 2, use 2-bit encoding
+    outputBits(pWork, pWork.distBits[distance >>> 2], pWork.distCodes[distance >>> 2]);
+    outputBits(pWork, 2, distance & 3);
   } else {
-    // Normal repetition
-    const extraBits = DistBits[distCode] - pWork.dsizeBits;
-    if (extraBits > 0) {
-      outputBits(pWork, extraBits, distance - (1 << (DistBits[distCode] - extraBits)));
-    }
+    // For length > 2, use dictionary size encoding
+    outputBits(pWork, pWork.distBits[distance >>> pWork.dsizeBits], pWork.distCodes[distance >>> pWork.dsizeBits]);
+    outputBits(pWork, pWork.dsizeBits, pWork.dsizeMask & distance);
   }
 }
 
@@ -291,6 +287,35 @@ export function implode(
         };
     }
 
+    // Initialize character tables like C code
+    if (compressionType === CMP_BINARY) {
+      // Binary mode: 9 bits for literals
+      for (let nCount = 0; nCount < 0x100; nCount++) {
+        pWork.nChBits[nCount] = 9;
+        pWork.nChCodes[nCount] = nCount * 2;
+      }
+    } else {
+      // ASCII mode: use Huffman encoding (simplified for now)
+      for (let nCount = 0; nCount < 0x100; nCount++) {
+        pWork.nChBits[nCount] = 9; // Simplified to 9 bits
+        pWork.nChCodes[nCount] = nCount * 2;
+      }
+    }
+
+    // Initialize length codes (matches C code exactly)
+    let nCount = 0x100;
+    for (let i = 0; i < 0x10; i++) {
+      for (let nCount2 = 0; nCount2 < (1 << ExLenBits[i]); nCount2++) {
+        pWork.nChBits[nCount] = ExLenBits[i] + LenBits[i] + 1;
+        pWork.nChCodes[nCount] = (nCount2 << (LenBits[i] + 1)) | ((LenCode[i] & 0xFFFF00FF) * 2) | 1;
+        nCount++;
+      }
+    }
+
+    // Copy distance tables
+    pWork.distBits.set(DistBits);
+    pWork.distCodes.set(DistCode);
+
     // Initialize ASCII tables if needed
     if (compressionType === CMP_ASCII) {
       initAsciiTables(pWork);
@@ -307,7 +332,6 @@ export function implode(
     
     // Initialize bit buffer properly
     pWork.outBits = 0;
-    pWork.bitBuff = 0;
     
     let totalInput = 0;
     
@@ -362,9 +386,8 @@ export function implode(
       }
     }
     
-    // Write end-of-stream marker
-    outputBits(pWork, 1, 1); // Repetition marker
-    outputBits(pWork, LenBits[LUTSizesEnum.LENS_SIZES - 1], LenCode[LUTSizesEnum.LENS_SIZES - 1]); // Max length code for EOS
+    // Write end-of-stream marker (matches C code exactly)
+    outputBits(pWork, pWork.nChBits[0x305], pWork.nChCodes[0x305]);
     
     // Flush remaining bits like C code
     if (pWork.outBits !== 0) {
