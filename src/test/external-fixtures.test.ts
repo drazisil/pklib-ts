@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { explode } from '../explode/explode';
+import { explodePKLib } from '../explode/explode';
 import { CMP_BINARY, CMP_ASCII } from '../types';
 
 describe('External Fixture Tests', () => {
@@ -138,8 +138,8 @@ describe('External Fixture Tests', () => {
         return size;
       };
 
-      // Decompress using our implementation
-      const result = explode(readBuf, writeBuf, compressionType, dictionarySize);
+      // Decompress using our PKLib-compatible implementation
+      const result = explodePKLib(readBuf, writeBuf);
 
       // Debug: Log the result details
       console.log(`  Result success: ${result.success}`);
@@ -153,7 +153,7 @@ describe('External Fixture Tests', () => {
       expect(result.success).toBe(true);
       expect(result.decompressedData).toBeDefined();
       
-      const decompressed = new Uint8Array(outputData);
+      const decompressed = result.decompressedData!;
       expect(decompressed.length).toBe(expectedData.length);
       expect(decompressed).toEqual(expectedData);
 

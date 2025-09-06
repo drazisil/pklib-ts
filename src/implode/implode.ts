@@ -121,26 +121,27 @@ function flushBuf(pWork: CompressionStruct): void {
 /**
  * Output bits to the compressed stream - matches C code exactly
  */
-function outputBits(pWork: CompressionStruct, nBits: number, bitBuff: number): void {
-  // If more than 8 bits to output, do recursion
-  if (nBits > 8) {
+function outputBits(pWork: CompressionStruct, nbits: number, bitBuff: number): void {
+  let outBits: number;
+
+  // If more than 8 bits to output, do recursion (exactly like C code)
+  if (nbits > 8) {
     outputBits(pWork, 8, bitBuff);
-    bitBuff >>>= 8;
-    nBits -= 8;
-    outputBits(pWork, nBits, bitBuff);
-    return;
+    bitBuff >>>= 8;  // Use unsigned right shift
+    nbits -= 8;
+    // Continue with the rest of the function for remaining bits
   }
 
-  // Add bits to the last out byte in out_buff
-  const outBits = pWork.outBits;
+  // Add bits to the last out byte in out_buff; (exactly like C code)
+  outBits = pWork.outBits;
   pWork.outBuff[pWork.outBytes] |= (bitBuff << outBits) & 0xFF;
-  pWork.outBits += nBits;
+  pWork.outBits += nbits;
 
-  // If 8 or more bits, increment number of bytes
-  if (pWork.outBits >= 8) {
+  // If 8 or more bits, increment number of bytes (exactly like C code)
+  if (pWork.outBits > 8) {
     pWork.outBytes++;
-    bitBuff >>>= (8 - outBits);
-
+    bitBuff >>>= (8 - outBits);  // Use unsigned right shift
+    
     pWork.outBuff[pWork.outBytes] = bitBuff & 0xFF;
     pWork.outBits &= 7;
   } else {
@@ -362,10 +363,49 @@ export function implode(
         if (i < endPos - 1) { // Need at least 2 bytes for repetition search
           const rep = findRep(pWork, i);
           
+          // Apply same checks as C code to avoid problematic repetitions
           if (rep.length >= 2 && rep.distance > 0) {
-            // Output repetition
-            writeDistance(pWork, rep.distance, rep.length);
-            i += rep.length;
+            // If we got repetition of 2 bytes, that is 0x100 or more backward, don't bother
+            if (rep.length === 2 && rep.distance >= 0x100) {
+              // Output literal instead
+              writeLiteral(pWork, pWork.workBuff[i]);
+              i++;
+            }
+            // Only avoid the specific self-referencing case (distance < length) that causes infinite loops
+            else if (rep.distance < rep.length) {
+              // Output literal instead  
+              writeLiteral(pWork, pWork.workBuff[i]);
+              i++;
+            }
+            else {
+              // Implement C code's look-ahead strategy
+              if (rep.length >= 8 || i + 1 >= endPos) {
+                // Use current repetition
+                writeDistance(pWork, rep.distance, rep.length);
+                i += rep.length;
+              } else {
+                // Try to find better repetition 1 byte later (like C code)
+                const saveRepLength = rep.length;
+                const saveDistance = rep.distance;
+                const nextRep = findRep(pWork, i + 1);
+                
+                // Only use the new repetition if it's length is greater than the previous one
+                if (nextRep.length > saveRepLength) {
+                  // If the new repetition is only 1 byte better
+                  // and the previous distance is less than 0x80 bytes, use the previous repetition
+                  if (nextRep.length > saveRepLength + 1 || saveDistance > 0x80) {
+                    // Flush one byte, so that we point to the secondary repetition
+                    writeLiteral(pWork, pWork.workBuff[i]);
+                    i++;
+                    continue;
+                  }
+                }
+                
+                // Revert to the previous repetition and use it
+                writeDistance(pWork, saveDistance, saveRepLength);
+                i += saveRepLength;
+              }
+            }
           } else {
             // Output literal
             writeLiteral(pWork, pWork.workBuff[i]);
