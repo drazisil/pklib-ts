@@ -204,7 +204,7 @@ function decodeLit(pWork: DecompressionStruct): number {
             return 0x306; // Error
           }
           
-          const count = pWork.offs2D34[(bitBuffer >> 4) & 0xFF];
+          const count = pWork.offs2D34[pWork.bitStream.getBitBuffer() & 0xFF];
           if (!pWork.bitStream.wasteBits(pWork.chBitsAscWork[count])) {
             return 0x306; // Error
           }
@@ -215,7 +215,7 @@ function decodeLit(pWork: DecompressionStruct): number {
             return 0x306; // Error
           }
           
-          const count = pWork.offs2E34[(bitBuffer >> 6) & 0x7F];
+          const count = pWork.offs2E34[pWork.bitStream.getBitBuffer() & 0x7F];
           if (!pWork.bitStream.wasteBits(pWork.chBitsAscWork[count])) {
             return 0x306; // Error
           }
