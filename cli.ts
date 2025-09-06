@@ -22,13 +22,19 @@ Commands:
   explode     Decompress PKWARE-compressed hex data
   implode     Compress hex data using PKWARE algorithm
 
+Options:
+  --raw       Output raw binary data (no hex formatting)
+
 Options for implode:
   --ascii     Use ASCII compression mode (default: binary)
   --dict=N    Dictionary size: 1024, 2048, or 4096 (default: 4096)
 
 Examples:
-  # Decompress hex data
+  # Decompress hex data (formatted output)
   node cli.ts explode "0006ac149102420000000076004..."
+
+  # Decompress hex data (raw binary output)
+  node cli.ts explode "0006ac149102420000000076004..." --raw
 
   # Compress hex data (binary mode, 4096 dict)
   node cli.ts implode "56455220020000003b00495645..."
@@ -85,14 +91,18 @@ function formatHexOutput(data: Uint8Array, maxWidth: number = 32): string {
   return lines.join('\n');
 }
 
-function performExplode(hexData: string): void {
+function performExplode(hexData: string, rawOutput: boolean = false): void {
   try {
-    console.log('🔓 PKLib Explode (Decompression)');
-    console.log('=================================\n');
+    if (!rawOutput) {
+      console.log('🔓 PKLib Explode (Decompression)');
+      console.log('=================================\n');
+    }
     
     const inputData = parseHexString(hexData);
-    console.log(`Input: ${inputData.length} bytes`);
-    console.log(`${formatHexOutput(inputData)}\n`);
+    if (!rawOutput) {
+      console.log(`Input: ${inputData.length} bytes`);
+      console.log(`${formatHexOutput(inputData)}\n`);
+    }
     
     const outputBuffer = new Uint8Array(64 * 1024); // 64KB buffer
     let outputPos = 0;
@@ -120,16 +130,22 @@ function performExplode(hexData: string): void {
     
     if (result.success) {
       const outputData = outputBuffer.slice(0, outputPos);
-      console.log(`✅ Decompression successful!`);
-      console.log(`Output: ${outputData.length} bytes`);
-      console.log(`Compression ratio: ${((inputData.length / outputData.length) * 100).toFixed(1)}%\n`);
-      console.log(`${formatHexOutput(outputData)}\n`);
       
-      // Try to show as ASCII if printable
-      const ascii = Array.from(outputData)
-        .map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.')
-        .join('');
-      console.log(`ASCII interpretation: "${ascii}"`);
+      if (rawOutput) {
+        // Output raw binary data to stdout
+        process.stdout.write(outputData);
+      } else {
+        console.log(`✅ Decompression successful!`);
+        console.log(`Output: ${outputData.length} bytes`);
+        console.log(`Compression ratio: ${((inputData.length / outputData.length) * 100).toFixed(1)}%\n`);
+        console.log(`${formatHexOutput(outputData)}\n`);
+        
+        // Try to show as ASCII if printable
+        const ascii = Array.from(outputData)
+          .map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.')
+          .join('');
+        console.log(`ASCII interpretation: "${ascii}"`);
+      }
     } else {
       console.error(`❌ Decompression failed with error code: ${result.errorCode}`);
       process.exit(1);
@@ -140,17 +156,21 @@ function performExplode(hexData: string): void {
   }
 }
 
-function performImplode(hexData: string, options: { ascii?: boolean, dict?: number }): void {
+function performImplode(hexData: string, options: { ascii?: boolean, dict?: number, raw?: boolean }): void {
   try {
-    console.log('🔒 PKLib Implode (Compression)');
-    console.log('===============================\n');
+    if (!options.raw) {
+      console.log('🔒 PKLib Implode (Compression)');
+      console.log('===============================\n');
+    }
     
     const inputData = parseHexString(hexData);
-    console.log(`Input: ${inputData.length} bytes`);
-    console.log(`${formatHexOutput(inputData)}\n`);
+    if (!options.raw) {
+      console.log(`Input: ${inputData.length} bytes`);
+      console.log(`${formatHexOutput(inputData)}\n`);
+    }
     
     // Show ASCII interpretation if requested
-    if (options.ascii) {
+    if (options.ascii && !options.raw) {
       const ascii = Array.from(inputData)
         .map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.')
         .join('');
@@ -166,8 +186,10 @@ function performImplode(hexData: string, options: { ascii?: boolean, dict?: numb
       throw new Error(`Invalid dictionary size: ${dictSize}. Valid sizes: ${validDictSizes.join(', ')}`);
     }
     
-    console.log(`Mode: ${options.ascii ? 'ASCII' : 'BINARY'}`);
-    console.log(`Dictionary size: ${dictSize} bytes\n`);
+    if (!options.raw) {
+      console.log(`Mode: ${options.ascii ? 'ASCII' : 'BINARY'}`);
+      console.log(`Dictionary size: ${dictSize} bytes\n`);
+    }
     
     const outputBuffer = new Uint8Array(64 * 1024); // 64KB buffer
     let outputPos = 0;
@@ -199,10 +221,16 @@ function performImplode(hexData: string, options: { ascii?: boolean, dict?: numb
     
     if (result.success) {
       const outputData = outputBuffer.slice(0, outputPos);
-      console.log(`✅ Compression successful!`);
-      console.log(`Output: ${outputData.length} bytes`);
-      console.log(`Compression ratio: ${((outputData.length / inputData.length) * 100).toFixed(1)}%\n`);
-      console.log(`${formatHexOutput(outputData)}`);
+      
+      if (options.raw) {
+        // Output raw binary data to stdout
+        process.stdout.write(outputData);
+      } else {
+        console.log(`✅ Compression successful!`);
+        console.log(`Output: ${outputData.length} bytes`);
+        console.log(`Compression ratio: ${((outputData.length / inputData.length) * 100).toFixed(1)}%\n`);
+        console.log(`${formatHexOutput(outputData)}`);
+      }
     } else {
       console.error(`❌ Compression failed with error code: ${result.errorCode}`);
       process.exit(1);
@@ -240,18 +268,22 @@ function main() {
     case 'explode':
     case 'decompress':
     case 'expand':
-      performExplode(hexData);
+      // Check for --raw flag
+      const rawExplode = args.includes('--raw');
+      performExplode(hexData, rawExplode);
       break;
       
     case 'implode':
     case 'compress':
       // Parse options
-      const options: { ascii?: boolean, dict?: number } = {};
+      const options: { ascii?: boolean, dict?: number, raw?: boolean } = {};
       
       for (let i = 2; i < args.length; i++) {
         const arg = args[i];
         if (arg === '--ascii') {
           options.ascii = true;
+        } else if (arg === '--raw') {
+          options.raw = true;
         } else if (arg.startsWith('--dict=')) {
           options.dict = parseInt(arg.split('=')[1]);
         } else {

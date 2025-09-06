@@ -350,13 +350,13 @@ export function explode(
       
       if (oneLiteral === 0x306) {
         // Error - but let's finalize what we have so far
-        console.log(`PKLib: decodeLit error after ${iterationCount} iterations, outputPos=${pWork.outputPos}`);
+        console.error(`PKLib: decodeLit error after ${iterationCount} iterations, outputPos=${pWork.outputPos}`);
         break;
       }
       
       if (oneLiteral === 0x305) {
         // End of stream
-        console.log(`PKLib: end of stream reached after ${iterationCount} iterations`);
+        console.error(`PKLib: end of stream reached after ${iterationCount} iterations`);
         break;
       }
       
@@ -378,7 +378,7 @@ export function explode(
         const moveBackward = decodeDist(pWork, copyLength);
         
         if (moveBackward === 0) {
-          console.log(`PKLib: decodeDist error after ${iterationCount} iterations, outputPos=${pWork.outputPos}`);
+          console.error(`PKLib: decodeDist error after ${iterationCount} iterations, outputPos=${pWork.outputPos}`);
           break;
         }
         
