@@ -16,7 +16,7 @@
   },
   "include": [
     "src/**/*"
-  ],
+, "test/integration.test.ts", "test/internal-vs-external.test.ts", "test/literals-only.test.ts", "test/outputbits-debug.test.ts", "test/pklib-compat.test.ts", "test/round-trip.test.ts", "test/trace-outputbits.test.ts", "test/all-external.test.ts", "test/ascii-critical.test.ts", "test/ascii-debug.test.ts", "test/ascii-table-analysis.test.ts", "test/ascii-table-debug.test.ts", "test/binary-critical.test.ts", "test/binary-debug.test.ts", "test/binary-dict6.test.ts", "test/binary-header.test.ts", "test/binary-roundtrip.test.ts", "test/bit-debug.test.ts", "test/bit-stream-debug.test.ts", "test/bit-trace.test.ts", "test/byte15-analysis.test.ts", "test/char-h-analysis.test.ts", "test/character-code-analysis.test.ts", "test/character-table-fix.test.ts", "test/compression-compare.test.ts", "test/debug-external.test.ts", "test/debug-repetitions.test.ts", "test/deep-diagnostic.test.ts", "test/diagnostic.test.ts", "test/divergence-debug.test.ts", "test/early-debug.test.ts", "test/external-fixtures.test.ts", "test/external-only.test.ts", "test/first-ops-debug.test.ts", "test/fix-verification.test.ts", "test/header-analysis.test.ts", "test/header-comparison.test.ts", "test/hex-dump.test.ts"  ],
   "exclude": [
     "node_modules",
     "dist",
