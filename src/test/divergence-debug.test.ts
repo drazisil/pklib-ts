@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { implode } from '../implode/implode';
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import { CMP_BINARY, ImplodeDictSizes } from '../types';
 
 describe('First Divergence Debug', () => {
@@ -111,7 +111,7 @@ describe('First Divergence Debug', () => {
       return size;
     };
 
-    const decompressResult = explodePKLib(readBuf, writeBuf);
+    const decompressResult = explode(readBuf, writeBuf);
     if (decompressResult.success) {
       const decompressed = new Uint8Array(outputData);
       console.log(`  Decompressed: ${decompressed.length} bytes`);

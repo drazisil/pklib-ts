@@ -1,4 +1,4 @@
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import { CMP_ASCII, ImplodeDictSizes } from '../types';
 import fs from 'fs';
 import path from 'path';
@@ -26,7 +26,7 @@ describe('ASCII Table Debug', () => {
 
     // This will generate the tables and then fail, but that's okay
     try {
-      explodePKLib(readBuf, writeBuf);
+      explode(readBuf, writeBuf);
     } catch (e) {
       // Expected to fail
     }

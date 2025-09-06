@@ -1,4 +1,4 @@
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import fs from 'fs';
 import path from 'path';
 
@@ -60,7 +60,7 @@ describe('Early Debug', () => {
       }
     };
     
-    const result = explodePKLib(readFunc, writeFunc);
+    const result = explode(readFunc, writeFunc);
     
     console.log(`Result: success=${result.success}, errorCode=${result.errorCode}`);
     console.log(`Total writes: ${writeCount}`);

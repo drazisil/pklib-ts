@@ -4,7 +4,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { explodePKLib } from '../explode/explode-pklib';
+import { explode } from '../explode/explode';
 
 describe('PKLib-Compatible Explode', () => {
   it('should handle small.imploded with PKLib-compatible API', () => {
@@ -46,7 +46,7 @@ describe('PKLib-Compatible Explode', () => {
     };
     
     // Test the PKLib-compatible function
-    const result = explodePKLib(readFunc, writeFunc);
+    const result = explode(readFunc, writeFunc);
     
     console.log(`Result: success=${result.success}, errorCode=${result.errorCode}`);
     console.log(`Output data length: ${outputData.length}`);

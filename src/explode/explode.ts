@@ -275,169 +275,9 @@ function decodeDist(pWork: DecompressionStruct, length: number): number {
 
 /**
  * Main explode (decompression) function
+ * Compatible with PKWARE Data Compression Library API
  */
 export function explode(
-  readBuf: ReadFunction,
-  writeBuf: WriteFunction,
-  compressionType: number,
-  dictionarySize: number
-): DecompressionResult {
-  try {
-    const pWork = new DecompressionStruct(readBuf);
-    
-    // Set compression type
-    pWork.ctype = compressionType;
-    
-    // Set dictionary size parameters
-    switch (dictionarySize) {
-      case 1024:
-        pWork.dsizeBits = 4;
-        pWork.dsizeMask = 0x0F;
-        break;
-      case 2048:
-        pWork.dsizeBits = 5;
-        pWork.dsizeMask = 0x1F;
-        break;
-      case 4096:
-        pWork.dsizeBits = 6;
-        pWork.dsizeMask = 0x3F;
-        break;
-      default:
-        return {
-          success: false,
-          errorCode: PklibErrorCode.CMP_INVALID_DICTSIZE
-        };
-    }
-
-    // Generate decode tables
-    genDecodeTabs(pWork.distPosCodes, DistCode, DistBits, LUTSizesEnum.DIST_SIZES);
-    genDecodeTabs(pWork.lengthCodes, LenCode, LenBits, LUTSizesEnum.LENS_SIZES);
-    
-    if (compressionType === CMP_ASCII) {
-      genAscTabs(pWork);
-    }
-
-    const outputBuffer = new Uint8Array(0x1000); // 4KB output buffer
-    let totalOutput = 0;
-    let outputChunks: Uint8Array[] = [];
-
-    // Main decompression loop
-    while (true) {
-      const oneLiteral = decodeLit(pWork);
-      
-      if (oneLiteral === 0x306) {
-        // Error
-        return {
-          success: false,
-          errorCode: PklibErrorCode.CMP_BAD_DATA
-        };
-      }
-      
-      if (oneLiteral === 0x305) {
-        // End of stream
-        break;
-      }
-      
-      if (oneLiteral < 0x100) {
-        // Literal byte
-        outputBuffer[pWork.outputPos] = oneLiteral;
-        pWork.slidingWindow.writeByte(oneLiteral);
-        pWork.outputPos++;
-        
-        if (pWork.outputPos >= outputBuffer.length) {
-          outputChunks.push(outputBuffer.slice(0, pWork.outputPos));
-          totalOutput += pWork.outputPos;
-          writeBuf(outputBuffer.slice(0, pWork.outputPos), pWork.outputPos);
-          pWork.outputPos = 0;
-        }
-      } else {
-        // Repetition
-        const repLength = oneLiteral - 0x100 + 2;
-        const distance = decodeDist(pWork, repLength);
-        
-        if (distance === 0) {
-          return {
-            success: false,
-            errorCode: PklibErrorCode.CMP_BAD_DATA
-          };
-        }
-
-        // Copy bytes from sliding window
-        for (let i = 0; i < repLength; i++) {
-          const byte = pWork.slidingWindow.getByte(distance - 1);
-          outputBuffer[pWork.outputPos] = byte;
-          pWork.slidingWindow.writeByte(byte);
-          pWork.outputPos++;
-          
-          if (pWork.outputPos >= outputBuffer.length) {
-            outputChunks.push(outputBuffer.slice(0, pWork.outputPos));
-            totalOutput += pWork.outputPos;
-            writeBuf(outputBuffer.slice(0, pWork.outputPos), pWork.outputPos);
-            pWork.outputPos = 0;
-          }
-        }
-      }
-    }
-
-    // Write remaining output
-    if (pWork.outputPos > 0) {
-      outputChunks.push(outputBuffer.slice(0, pWork.outputPos));
-      totalOutput += pWork.outputPos;
-      writeBuf(outputBuffer.slice(0, pWork.outputPos), pWork.outputPos);
-    }
-
-    // Combine all output chunks
-    const result = new Uint8Array(totalOutput);
-    let offset = 0;
-    for (const chunk of outputChunks) {
-      result.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    return {
-      success: true,
-      errorCode: PklibErrorCode.CMP_NO_ERROR,
-      decompressedData: result,
-      originalSize: totalOutput
-    };
-
-  } catch (error) {
-    return {
-      success: false,
-      errorCode: PklibErrorCode.CMP_BAD_DATA
-    };
-  }
-}
-
-/**
- * Utility function to get explode size constants
- */
-export function getExplodeSizeConstants(): {
-  own_size: number;
-  internal_struct_size: number;
-  IN_BUFF_SIZE: number;
-  CODES_SIZE: number;
-  OFFSS_SIZE: number;
-  OFFSS_SIZE1: number;
-  CH_BITS_ASC_SIZE: number;
-  LENS_SIZES: number;
-} {
-  return {
-    own_size: 32,
-    internal_struct_size: 12596,
-    IN_BUFF_SIZE: ExplodeSizesEnum.IN_BUFF_SIZE,
-    CODES_SIZE: ExplodeSizesEnum.CODES_SIZE,
-    OFFSS_SIZE: ExplodeSizesEnum.OFFSS_SIZE,
-    OFFSS_SIZE1: ExplodeSizesEnum.OFFSS_SIZE1,
-    CH_BITS_ASC_SIZE: LUTSizesEnum.CH_BITS_ASC_SIZE,
-    LENS_SIZES: LUTSizesEnum.LENS_SIZES,
-  };
-}
-
-/**
- * PKLib-compatible explode function that handles the header parsing internally
- */
-export function explodePKLib(
   readBuf: ReadFunction,
   writeBuf: WriteFunction
 ): DecompressionResult {
@@ -587,3 +427,30 @@ export function explodePKLib(
     };
   }
 }
+
+/**
+ * Utility function to get explode size constants
+ */
+export function getExplodeSizeConstants(): {
+  own_size: number;
+  internal_struct_size: number;
+  IN_BUFF_SIZE: number;
+  CODES_SIZE: number;
+  OFFSS_SIZE: number;
+  OFFSS_SIZE1: number;
+  CH_BITS_ASC_SIZE: number;
+  LENS_SIZES: number;
+} {
+  return {
+    own_size: 36,
+    internal_struct_size: 2452,  // Size of the decompression structure
+    IN_BUFF_SIZE: ExplodeSizesEnum.IN_BUFF_SIZE,
+    CODES_SIZE: ExplodeSizesEnum.CODES_SIZE,
+    OFFSS_SIZE: ExplodeSizesEnum.OFFSS_SIZE,
+    OFFSS_SIZE1: ExplodeSizesEnum.OFFSS_SIZE1,
+    CH_BITS_ASC_SIZE: LUTSizesEnum.CH_BITS_ASC_SIZE,
+    LENS_SIZES: LUTSizesEnum.LENS_SIZES,
+  };
+}
+
+

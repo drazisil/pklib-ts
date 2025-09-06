@@ -1,5 +1,5 @@
 import { implode } from '../implode/implode';
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import { CMP_BINARY, ImplodeDictSizes } from '../types';
 import fs from 'fs';
 import path from 'path';
@@ -64,7 +64,7 @@ describe('Round-trip Test', () => {
       return bytesToWrite;
     };
 
-    const decompressResult = explodePKLib(readBuf, writeBuf);
+    const decompressResult = explode(readBuf, writeBuf);
     
     console.log(`Decompress result: success=${decompressResult.success}, error=${decompressResult.errorCode}`);
     

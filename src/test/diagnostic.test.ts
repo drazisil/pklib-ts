@@ -81,7 +81,7 @@ describe('Detailed External Test Diagnostics', () => {
     };
     
     console.log('\nStrategy 1: Skip 3-byte header');
-    const result1 = explode(readFunc1, writeFunc1, compressionType, dictionarySize);
+    const result1 = explode(readFunc1, writeFunc1);
     console.log(`Result: success=${result1.success}, errorCode=${result1.errorCode}`);
     console.log(`Output data length: ${outputData1.length}`);
     if (result1.errorCode !== PklibErrorCode.CMP_NO_ERROR) {
@@ -111,7 +111,7 @@ describe('Detailed External Test Diagnostics', () => {
     };
     
     console.log('\nStrategy 2: Include header in data stream');
-    const result2 = explode(readFunc2, writeFunc2, compressionType, dictionarySize);
+    const result2 = explode(readFunc2, writeFunc2);
     console.log(`Result: success=${result2.success}, errorCode=${result2.errorCode}`);
     console.log(`Output data length: ${outputData2.length}`);
     if (result2.errorCode !== PklibErrorCode.CMP_NO_ERROR) {

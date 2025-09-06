@@ -1,4 +1,4 @@
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import fs from 'fs';
 import path from 'path';
 
@@ -38,7 +38,7 @@ describe('ASCII Debug Analysis', () => {
     };
 
     // Decompress
-    const result = explodePKLib(readBuf, writeBuf);
+    const result = explode(readBuf, writeBuf);
     
     console.log(`Got char at 690: ${decompressedData[690]} ('${String.fromCharCode(decompressedData[690])}')`);
     console.log(`Got char at 1525: ${decompressedData[1525]} ('${String.fromCharCode(decompressedData[1525])}')`);

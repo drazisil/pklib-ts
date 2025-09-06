@@ -161,9 +161,7 @@ describe('Integration Tests', () => {
       const decompressStreams = createStreamFunctions(fakeCompressedData);
       const decompressResult = explode(
         decompressStreams.readFunc,
-        decompressStreams.writeFunc,
-        CMP_BINARY,
-        ImplodeDictSizes.CMP_IMPLODE_DICT_SIZE1
+        decompressStreams.writeFunc
       );
       
       // The result may fail due to bad data, but should not crash

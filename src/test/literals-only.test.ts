@@ -1,5 +1,5 @@
 import { implode } from '../implode/implode';
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import { CMP_BINARY, ImplodeDictSizes } from '../types';
 
 describe('Literals Only Test', () => {
@@ -62,7 +62,7 @@ describe('Literals Only Test', () => {
       return available;
     };
 
-    const decompressResult = explodePKLib(decompressReadBuf, decompressWriteBuf);
+    const decompressResult = explode(decompressReadBuf, decompressWriteBuf);
     
     console.log(`\n📖 Decompression: ${decompressResult.success ? 'SUCCESS' : 'FAILED'}`);
     console.log(`Decompressed: ${Array.from(decompressedData).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);

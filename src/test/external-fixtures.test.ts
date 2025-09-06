@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import { CMP_BINARY, CMP_ASCII } from '../types';
 
 describe('External Fixture Tests', () => {
@@ -115,7 +115,7 @@ describe('External Fixture Tests', () => {
       console.log(`  Dictionary size: ${dictionarySize}`);
 
       // Create read function that reads from the compressed data buffer
-      let readPosition = 0; // Start from beginning so explodePKLib can read header
+      let readPosition = 0; // Start from beginning so explode can read header
       const readBuf = (buffer: Uint8Array, size: number): number => {
         const bytesToRead = Math.min(size, compressedData.length - readPosition);
         if (bytesToRead <= 0) {
@@ -139,7 +139,7 @@ describe('External Fixture Tests', () => {
       };
 
       // Decompress using our PKLib-compatible implementation
-      const result = explodePKLib(readBuf, writeBuf);
+      const result = explode(readBuf, writeBuf);
 
       // Debug: Log the result details
       console.log(`  Result success: ${result.success}`);

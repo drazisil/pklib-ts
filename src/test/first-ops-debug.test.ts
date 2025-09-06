@@ -1,4 +1,4 @@
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import fs from 'fs';
 import path from 'path';
 
@@ -61,7 +61,7 @@ describe('First Operations Debug', () => {
       }
     };
     
-    const result = explodePKLib(readFunc, writeFunc);
+    const result = explode(readFunc, writeFunc);
     
     console.log(`Result: success=${result.success}, errorCode=${result.errorCode}`);
     if (decompressedBytes.length > 0) {

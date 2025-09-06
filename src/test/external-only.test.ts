@@ -1,4 +1,4 @@
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import fs from 'fs';
 import path from 'path';
 
@@ -32,7 +32,7 @@ describe('External File Test', () => {
       return bytesToWrite;
     };
 
-    const result = explodePKLib(readBuf, writeBuf);
+    const result = explode(readBuf, writeBuf);
     
     console.log(`Decompress result: success=${result.success}, error=${result.errorCode}`);
     

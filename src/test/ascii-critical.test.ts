@@ -1,4 +1,4 @@
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import { implode } from '../implode/implode';
 import { CMP_ASCII, ImplodeDictSizes } from '../types';
 import fs from 'fs';
@@ -42,7 +42,7 @@ describe('ASCII Fixture Critical Test', () => {
     };
 
     // Test our decompression of PKLib's ASCII compressed data
-    const result = explodePKLib(
+    const result = explode(
       readBuf,
       writeBuf
     );
@@ -143,7 +143,7 @@ describe('ASCII Fixture Critical Test', () => {
       return bytesToWrite;
     };
 
-    const decompressionResult = explodePKLib(
+    const decompressionResult = explode(
       decompReadBuf,
       decompWriteBuf
     );

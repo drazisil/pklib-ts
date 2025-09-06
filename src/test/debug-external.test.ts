@@ -4,7 +4,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { explode, implode } from '../index';
+import { explode } from '../explode/explode';
+import { implode } from '../implode/implode';
 import { CMP_BINARY, ImplodeDictSizes } from '../types';
 
 describe('Debug External Format', () => {
@@ -78,10 +79,10 @@ describe('Debug External Format', () => {
     const decompressStreams = createStreamFunctions(compressedData);
     const decompressResult = explode(
       decompressStreams.readFunc,
-      decompressStreams.writeFunc,
-      CMP_BINARY,
-      ImplodeDictSizes.CMP_IMPLODE_DICT_SIZE1
+      decompressStreams.writeFunc
     );
+    
+    console.log(`Decompression result: success=${decompressResult.success}, error=${decompressResult.errorCode}`);
     
     expect(decompressResult.success).toBe(true);
     const decompressedData = decompressStreams.getOutput();

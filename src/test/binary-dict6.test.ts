@@ -1,5 +1,5 @@
 import { implode } from '../implode/implode';
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import { CMP_BINARY, ImplodeDictSizes } from '../types';
 import fs from 'fs';
 import path from 'path';
@@ -37,7 +37,7 @@ describe('Binary Fixture - Fixed Dictionary Size', () => {
       return available;
     };
 
-    const decompressResult = explodePKLib(decompressReadBuf, decompressWriteBuf);
+    const decompressResult = explode(decompressReadBuf, decompressWriteBuf);
     
     console.log(`Decompression result: ${decompressResult.success ? '✅ SUCCESS' : '❌ FAILED'}`);
     console.log(`Decompressed ${decompressedData.length} bytes`);

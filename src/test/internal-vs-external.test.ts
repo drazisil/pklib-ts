@@ -5,7 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { implode } from '../implode/implode';
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import { getImplodeSizeConstants } from '../implode/implode';
 import { getExplodeSizeConstants } from '../explode/explode';
 import { CMP_BINARY, ImplodeDictSizes } from '../types';
@@ -117,9 +117,9 @@ describe('Internal vs External Data Comparison', () => {
     
     console.log(`PKLib manual: type=${pkLibCompressionType}, dictBits=${pkLibDictSizeBits}, initBits=0x${pkLibInitialBitBuffer.toString(16)}`);
     
-    // Create read function for the entire buffer (header will be consumed by explodePKLib)
+    // Create read function for the entire buffer (header will be consumed by explode)
     readPosition = 0;
-    const decompressResult = explodePKLib(
+    const decompressResult = explode(
       pkLibReadFunc,
       pkLibWriteFunc
     );

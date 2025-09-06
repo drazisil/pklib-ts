@@ -1,4 +1,4 @@
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import fs from 'fs';
 import path from 'path';
 
@@ -47,7 +47,7 @@ describe('All External Fixtures Test', () => {
         return bytesToWrite;
       };
 
-      const result = explodePKLib(readBuf, writeBuf);
+      const result = explode(readBuf, writeBuf);
       
       console.log(`  Result: success=${result.success}, error=${result.errorCode}`);
       

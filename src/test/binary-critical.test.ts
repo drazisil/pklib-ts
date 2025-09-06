@@ -1,4 +1,4 @@
-import { explodePKLib } from '../explode/explode';
+import { explode } from '../explode/explode';
 import { implode } from '../implode/implode';
 import { CMP_BINARY, ImplodeDictSizes } from '../types';
 import fs from 'fs';
@@ -35,7 +35,7 @@ describe('Binary Fixture Critical Test', () => {
       return bytesToWrite;
     };
 
-    const result = explodePKLib(readBuf, writeBuf);
+    const result = explode(readBuf, writeBuf);
     
     console.log(`  Result: success=${result.success}, error=${result.errorCode}`);
     console.log(`  Decompressed: ${result.decompressedData?.length} bytes`);
@@ -108,7 +108,7 @@ describe('Binary Fixture Critical Test', () => {
       return bytesToWrite;
     };
 
-    const decompressResult = explodePKLib(decompressReadBuf, decompressWriteBuf);
+    const decompressResult = explode(decompressReadBuf, decompressWriteBuf);
     
     console.log(`  Decompression: success=${decompressResult.success}, error=${decompressResult.errorCode}`);
     console.log(`  Decompressed: ${decompressResult.decompressedData?.length} bytes`);
