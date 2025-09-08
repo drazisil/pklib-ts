@@ -32,6 +32,22 @@ This library provides compression and decompression functionality compatible wit
 - **TypeScript**: Full TypeScript support with type definitions
 - **Stream-based**: Efficient stream-based processing for large data
 
+## Code Coverage
+
+[![codecov](https://codecov.io/gh/drazisil/pklib-ts/branch/main/graph/badge.svg)](https://codecov.io/gh/drazisil/pklib-ts)
+
+This project maintains high code coverage with automated reporting via [Codecov](https://codecov.io/gh/drazisil/pklib-ts). Coverage reports are generated on every CI run and provide detailed insights into test coverage across all source files.
+
+### Running Coverage Locally
+
+```bash
+# Run tests with coverage report
+npm run test:coverage
+
+# Coverage files will be generated in the coverage/ directory
+# Open coverage/lcov-report/index.html in your browser for detailed report
+```
+
 ## Installation
 
 ```bash

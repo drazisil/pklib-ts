@@ -11,5 +11,11 @@ module.exports = {
     '!src/**/*.test.ts',
     '!src/**/*.spec.ts',
   ],
+  coverageDirectory: 'coverage',
+  coverageReporters: [
+    'text',
+    'lcov',
+    'clover'
+  ],
   moduleFileExtensions: ['ts', 'js', 'json'],
 };
